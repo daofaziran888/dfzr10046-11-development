@@ -16,7 +16,9 @@ class Store:
         }
 
     def module_names(self) -> list[str]:
-        return sorted(self._tables)
+        # 空表多为运行期按需创建（派办/待办等），不计入模块清单，
+        # 也避免种子完整性巡检把空运行期表误判为缺数。
+        return sorted(name for name, rows in self._tables.items() if rows)
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])

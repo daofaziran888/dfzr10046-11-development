@@ -24,6 +24,14 @@ from app.services.lineage_edge import LineageEdgeService
 from app.services.dim_publish import DimPublishService
 from app.services.model_audit import ModelAuditService
 from app.services.src_extract import SrcExtractService
+from app.services.audit_dispatch import AuditDispatchService
+from app.services.audit_resources import (
+    AuditAssignmentService,
+    AuditOpinionService,
+    AuditRequestLogService,
+    AuditReviewMaterialService,
+    AuditTodoService,
+)
 
 SERVICES: dict[str, BaseModuleService] = {
     "dim_entry": DimEntryService(),
@@ -48,6 +56,12 @@ SERVICES: dict[str, BaseModuleService] = {
     "dim_publish": DimPublishService(),
     "model_audit": ModelAuditService(),
     "src_extract": SrcExtractService(),
+    "audit_dispatch": AuditDispatchService(),
+    "audit_todo": AuditTodoService(),
+    "audit_opinion": AuditOpinionService(),
+    "audit_request_log": AuditRequestLogService(),
+    "audit_assignment": AuditAssignmentService(),
+    "audit_review_material": AuditReviewMaterialService(),
 }
 
 

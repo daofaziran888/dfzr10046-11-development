@@ -3,6 +3,7 @@
     <aside class="app-side">
       <h1 class="app-title">维链工坊 · 维度建模与缓慢变化维加工平台</h1>
       <nav class="nav-list">
+        <RouterLink class="nav-item" to="/audit">审计派办 · 接单待办</RouterLink>
         <RouterLink v-for="item in navItems" :key="item.path" :to="item.path" class="nav-item">
           {{ item.label }}
         </RouterLink>
@@ -13,7 +14,7 @@
         <span class="head-desc">面向维度注册、缓慢变化维拉链、一致性维度核对、事实表装配、代理键生成、维度退化、迟到事实回补、汇总层派生、指标口径绑定与维度快照发布的数仓维度建模加工平台。</span>
         <span class="head-user">当前值班：数据工程组</span>
       </header>
-      <RouterView />
+      <RouterView :key="$route.path" />
     </main>
   </div>
 </template>

@@ -92,7 +92,48 @@ def create_entry(module: str, payload: EntryPayload) -> ActionResult:
 
 
 @router.post("/{module}/{entry_id}/actions", response_model=ActionResult)
-def run_action(module: str, entry_id: int, payload: ActionPayload) -> ActionResult:
+async def run_action(module: str, entry_id: int, request: Request,
+                     payload: ActionPayload | None = None) -> ActionResult:
     service = require_service(module)
-    entry, message = service.run_action(entry_id, payload.action.strip())
+    # 兼容无 body / 非标准 body 的调用：动作名优先取 pydantic 载荷，
+    # 其余身份、令牌、版本等上下文从原始 JSON、查询参数与请求头合并。
+    raw: dict[str, Any] = {}
+    try:
+        parsed = await request.json()
+        if isinstance(parsed, dict):
+            raw = parsed
+    except Exception:
+        raw = {}
+    if payload is None:
+        try:
+            payload = ActionPayload(**raw) if raw else ActionPayload(action="")
+        except Exception:
+            payload = ActionPayload(action=str(raw.get("action", "")) if raw else "")
+    action = (payload.action or str(raw.get("action", ""))).strip()
+
+    ctx: dict[str, Any] = dict(raw)
+    ctx["remark"] = payload.remark if payload.remark is not None else raw.get("remark")
+    ctx.update({k: v for k, v in request.query_params.items()})
+    headers = {k.lower(): v for k, v in request.headers.items()}
+    for hk, ck in (("x-operator", "operator"), ("x-user", "operator"),
+                   ("x-as", "operator"), ("x-actor", "operator"),
+                   ("x-assignment-token", "token")):
+        if headers.get(hk) and not ctx.get(ck):
+            ctx[ck] = headers[hk]
+
+    context_action = getattr(service, "run_action_ctx", None)
+    if callable(context_action):
+        result = context_action(entry_id, action, ctx)
+        # 允许返回 (entry, message) 或 (entry, message, extra)
+        if len(result) == 3:
+            entry, message, extra = result
+            extra = extra or {}
+            # 服务层可在 extra 中给出权威 ok（失败时 entry 也可能是详情字典）
+            ok = bool(extra["ok"]) if isinstance(extra, dict) and "ok" in extra \
+                else entry is not None
+            return ActionResult(ok=ok, message=message, entry=entry)
+        entry, message = result
+        return ActionResult(ok=entry is not None, message=message, entry=entry)
+
+    entry, message = service.run_action(entry_id, action)
     return ActionResult(ok=entry is not None, message=message, entry=entry)

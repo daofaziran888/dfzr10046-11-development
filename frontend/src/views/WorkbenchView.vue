@@ -15,6 +15,13 @@
       </div>
     </header>
 
+    <div v-if="meta.key === 'model_audit'" class="audit-entry-banner" data-testid="audit-entry-banner">
+      <span>A-17 客户维度回填异常需要派给处置与复核人员，并跨模块生成重跑任务接单待办。</span>
+      <RouterLink class="btn primary" data-testid="goto-audit-center" to="/audit">
+        进入审计派办中心（派办 / 接单 / 改派 / 复核）
+      </RouterLink>
+    </div>
+
     <div class="stat-row">
       <article v-for="item in stats" :key="item.label" class="stat-card">
         <span class="stat-label">{{ item.label }}</span>
@@ -51,7 +58,7 @@
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
-              v-for="action in meta.actions"
+              v-for="action in actionsFor(row)"
               :key="action"
               class="link"
               type="button"
@@ -90,11 +97,15 @@
       <span>共 {{ total }} 条{{ meta.name }}记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
+
+    <!-- A-17：建模审计页内直接承载审计派办中心，避免必须跳转到独立地址 -->
+    <AuditCenterView v-if="meta.key === 'model_audit'" embedded />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import {
   createEntry,
@@ -104,8 +115,10 @@ import {
   runAction as applyAction,
 } from '@/api/backend-service'
 import type { EntryRow } from '@/data/types'
+import AuditCenterView from '@/views/audit/AuditCenterView.vue'
 
 const props = defineProps<{ moduleKey: string }>()
+const router = useRouter()
 const meta = moduleMeta(props.moduleKey)
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
@@ -133,6 +146,15 @@ const statusSummary = computed(() =>
 function resetFilters() {
   filters.value = {}
   void reload()
+}
+
+/** “审计派办”只挂在需要派办的异常条目（A-17/待派办/异常）上，避免每行重复同名按钮。 */
+function actionsFor(row: EntryRow): string[] {
+  if (meta.key !== 'model_audit') return meta.actions
+  return meta.actions.filter((action) => {
+    if (action !== '审计派办') return true
+    return row['条目编号'] === 'A-17' || row.status === '待派办' || row.abnormal === true
+  })
 }
 
 async function exportRows() {
@@ -167,6 +189,12 @@ async function submitCreate() {
 
 async function runAction(action: string, row: EntryRow) {
   errorMessage.value = ''
+  // A-17：审计条目的“审计派办”进入派办中心，选择处置/复核人并生成接单待办。
+  if (meta.key === 'model_audit' && action === '审计派办') {
+    const auditNo = String(row['条目编号'] ?? '')
+    await router.push({ path: '/audit', query: { auditNo, new: '1' } })
+    return
+  }
   try {
     const result = await applyAction(meta.key, Number(row.id), action)
     if (!result.ok) throw new Error(result.message)
